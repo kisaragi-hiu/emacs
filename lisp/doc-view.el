@@ -737,8 +737,11 @@ OpenDocument format)."
 	      (doc-view-mode-p 'pdf)))
 	((eq type 'djvu)
 	 (executable-find "ddjvu"))
-	(t ;; unknown image type
-	 nil))))
+        ((eq type 'pandoc)
+         (and (executable-find "pandoc")
+              (executable-find "wkhtmltopdf")))
+        (t ;; unknown image type
+         nil))))
 
 ;;;; Conversion Functions
 
@@ -946,6 +949,22 @@ Should be invoked when the cached images aren't up-to-date."
     (set-process-sentinel proc 'doc-view-sentinel)
     (process-put proc 'buffer   (current-buffer))
     (process-put proc 'callback callback)))
+
+(defun doc-view-pandoc->pdf (file pdf callback)
+  "Convert FILE to PDF using pandoc and call CALLBACK when finished."
+  (doc-view-start-process
+   "pandoc->pdf" "pandoc"
+   (list "--to" "html5"
+         ;; FIXME: A6 requires high `doc-view-resolution' to not be unreadable.
+         "-V" "papersize=A6"
+         "-V" "margin-left=0"
+         "-V" "margin-top=0"
+         "-V" "margin-bottom=0"
+         "-V" "margin-right=0"
+         "-s" file
+         "-o" (expand-file-name pdf
+                                (doc-view--current-cache-dir)))
+   callback))
 
 (defun doc-view-dvi->pdf (dvi pdf callback)
   "Convert DVI to PDF asynchronously and call CALLBACK when finished."
@@ -1161,6 +1180,10 @@ Start by converting PAGES, and then the rest."
      ;; Doc is some ODF (or MS Office) doc.  This means that a doc.pdf
      ;; already exists in its cache subdirectory.
      (doc-view-pdf->txt (doc-view-current-cache-doc-pdf) txt callback))
+    ('pandoc
+     ;; We render to pandoc input to PDF.  This means that a doc.pdf
+     ;; already exists in the cache subdirectory.
+     (doc-view-pdf->txt (doc-view-current-cache-doc-pdf) txt callback))
     (_ (error "DocView doesn't know what to do"))))
 
 (defun doc-view-ps->pdf (ps pdf callback)
@@ -1198,6 +1221,11 @@ Those files are saved in the directory given by the function
                    (doc-view--current-cache-dir))))
     (make-directory (doc-view--current-cache-dir) t)
     (pcase doc-view-doc-type
+      (`pandoc
+       (let ((pdf (doc-view-current-cache-doc-pdf)))
+         (doc-view-pandoc->pdf
+          doc-view--buffer-file-name pdf
+          (lambda () (doc-view-pdf/ps->png pdf png-file)))))
       ('dvi
        ;; DVI files have to be converted to PDF before Ghostscript can process
        ;; it.
@@ -1775,7 +1803,9 @@ If BACKWARD is non-nil, jump to the previous match."
                 (error "Conflicting types: name says %s but content says %s"
                        name-types content-types))
               name-types content-types
-              (error "Cannot determine the document type"))))))
+              ;; (error "Cannot determine the document type")
+              ;; Let pandoc handle everything else
+              '(pandoc))))))
 
 (defun doc-view-set-up-single-converter ()
   "Find the right single-page converter for the current document type"

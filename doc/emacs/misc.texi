@@ -467,7 +467,9 @@ converting the document to a set of images using the @command{gs}
 and other external tools @footnote{For PostScript files, GhostScript
 is a hard requirement.  For DVI files, @code{dvipdf} or @code{dvipdfm}
 is needed.  For OpenDocument and Microsoft Office documents, the
-@code{unoconv} tool is needed.}, and displaying those images.
+@code{unoconv} tool is needed.  For other documents, both
+@code{pandoc} and @code{wkhtmltopdf} are required.}, and displaying
+those images.
 
 @findex doc-view-toggle-display
 @findex doc-view-minor-mode
